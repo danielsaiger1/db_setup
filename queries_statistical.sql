@@ -1,110 +1,110 @@
--- Auslastung Fertigungslinien
-WITH zeitinterval AS (
+-- Utilization of Production Lines
+WITH time_interval AS (
     SELECT 
-        '2024-12-01 00:00:00'::timestamp AS startzeit,
-        '2024-12-05 23:59:59'::timestamp AS endzeit
+        '2024-12-01 00:00:00'::timestamp AS start_time,
+        '2024-12-05 23:59:59'::timestamp AS end_time
 ),
-genutzte_zeit AS (
+used_time AS (
     SELECT 
-        fertigungslinie_id,
-        SUM(EXTRACT(EPOCH FROM LEAST(produktion_ende, zi.endzeit) - GREATEST(produktion_start, zi.startzeit))) AS genutzte_sekunden
+        production_line_id,
+        SUM(EXTRACT(EPOCH FROM LEAST(production_end, ti.end_time) - GREATEST(production_start, ti.start_time))) AS used_seconds
     FROM 
-        auftrag_batches, zeitinterval zi
+        order_batches, time_interval ti
     GROUP BY 
-        fertigungslinie_id
+        production_line_id
 )
 SELECT 
-    gz.fertigungslinie_id,
-    ROUND((gz.genutzte_sekunden / EXTRACT(EPOCH FROM (zi.endzeit - zi.startzeit)) * 100), 2) AS auslastung_prozent
+    ut.production_line_id,
+    ROUND((ut.used_seconds / EXTRACT(EPOCH FROM (ti.end_time - ti.start_time)) * 100), 2) AS utilization_percentage
 FROM 
-    genutzte_zeit gz, zeitinterval zi;
+    used_time ut, time_interval ti;
 
 
-
--- Auslastung Fertigungsstationen
-WITH zeitinterval AS (
+-- Utilization of Production Stations
+WITH time_interval AS (
     SELECT 
-        '2024-12-02 08:00:00'::timestamp AS startzeit,
-        '2024-12-02 13:30:00'::timestamp AS endzeit
+        '2024-12-02 08:00:00'::timestamp AS start_time,
+        '2024-12-02 13:30:00'::timestamp AS end_time
 ),
-genutzte_zeit AS (
+used_time AS (
     SELECT 
         station_id,
-        SUM(EXTRACT(EPOCH FROM LEAST(bearbeitungsende, zi.endzeit) - GREATEST(bearbeitungsstart, zi.startzeit))) AS genutzte_sekunden
+        SUM(EXTRACT(EPOCH FROM LEAST(processing_end, ti.end_time) - GREATEST(processing_start, ti.start_time))) AS used_seconds
     FROM 
-        track_trace, zeitinterval zi
+        track_trace, time_interval ti
     WHERE 
-        bearbeitungsstart < zi.endzeit AND bearbeitungsende > zi.startzeit
+        processing_start < ti.end_time AND processing_end > ti.start_time
     GROUP BY 
         station_id
 )
 SELECT 
-    gz.station_id,
-    ROUND((gz.genutzte_sekunden / EXTRACT(EPOCH FROM (zi.endzeit - zi.startzeit)) * 100), 2) AS auslastung_prozent
+    ut.station_id,
+    ROUND((ut.used_seconds / EXTRACT(EPOCH FROM (ti.end_time - ti.start_time)) * 100), 2) AS utilization_percentage
 FROM 
-    genutzte_zeit gz, zeitinterval zi;
+    used_time ut, time_interval ti;
 
 
---- Statistische Kennzahlen zu Störungen
+-- Statistical Metrics for Malfunctions
 SELECT 
     station_id,
-    COUNT(*) AS anzahl_stoerungen,
-    ROUND((SUM(EXTRACT(EPOCH FROM (ende - start))) / 3600), 2) AS summe_dauer_stunden,  -- Gesamte Störungsdauer in Stunden
-    ROUND((AVG(EXTRACT(EPOCH FROM (ende - start))) / 3600), 2) AS durchschnitt_dauer_stunden,  -- Durchschnittliche Störungsdauer in Stunden
-	(PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (ende - start))) / 3600)::decimal(8,2) AS q1_dauer_stunden,  -- 1. Quartil --> cast als decimal, da round funktion nicht auf percentile_cont angewendet werden kann
-    (PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (ende - start))) / 3600)::decimal(8,2) AS median_dauer_stunden,  -- Median
-    (PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (ende - start))) / 3600)::decimal(8,2) AS q3_dauer_stunden  -- 3. Quartil
+    COUNT(*) AS number_of_malfunctions,
+    ROUND((SUM(EXTRACT(EPOCH FROM (end_time - start_time))) / 3600), 2) AS total_duration_hours,  -- Total duration of malfunctions in hours
+    ROUND((AVG(EXTRACT(EPOCH FROM (end_time - start_time))) / 3600), 2) AS average_duration_hours,  -- Average duration of malfunctions in hours
+    (PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (end_time - start_time))) / 3600)::decimal(8,2) AS q1_duration_hours,  -- 1st quartile
+    (PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (end_time - start_time))) / 3600)::decimal(8,2) AS median_duration_hours,  -- Median
+    (PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (end_time - start_time))) / 3600)::decimal(8,2) AS q3_duration_hours  -- 3rd quartile
 FROM 
-	alarm
+    alarm
 WHERE 
     station_id IN (1, 14, 31) 
-    AND start >= '2024-12-02'  
-    AND ende <= '2024-12-04' 
-    AND typ = 'Störung' 
+    AND start_time >= '2024-12-02'  
+    AND end_time <= '2024-12-04' 
+    AND type = 'Malfunction' 
 GROUP BY 
     station_id
 ORDER BY
-	station_id;
+    station_id;
 
---- Ausschuss pro Auftrag
+
+-- Defective Parts per Order
 SELECT 
-    a.ID,
-    ab.waermepumpe_id,
-    ab.fertigungslinie_id,
-    ab.anzahl,
-    ab.produktion_start,
-    ab.produktion_ende,
-    (ab.anzahl - SUM(tt.anzahl_ausschuss)) AS anzahl_gutteile,
-    SUM(tt.anzahl_ausschuss) AS anzahl_schlechtteile
+    o.ID,
+    ob.heat_pump_id,
+    ob.production_line_id,
+    ob.quantity,
+    ob.production_start,
+    ob.production_end,
+    (ob.quantity - SUM(tt.defective_quantity)) AS number_of_good_parts,
+    SUM(tt.defective_quantity) AS number_of_defective_parts
 FROM
-    auftrag a
+    orders o
 JOIN
-    auftrag_batches ab ON a.ID = ab.auftrag_id
+    order_batches ob ON o.ID = ob.order_id
 JOIN
-    track_trace tt ON ab.waermepumpe_id = tt.waermepumpe_id
+    track_trace tt ON ob.heat_pump_id = tt.heat_pump_id
 GROUP BY
-    a.ID,
-    ab.waermepumpe_id, ab.fertigungslinie_id, ab.anzahl, ab.produktion_start, ab.produktion_ende
+    o.ID,
+    ob.heat_pump_id, ob.production_line_id, ob.quantity, ob.production_start, ob.production_end
 ORDER BY
-    a.ID ASC;
+    o.ID ASC;
 
 
---- Auswertung welcher Messwert für Ausschuss verantwortlich war
+-- Evaluation of Measurement Values Responsible for Defective Parts
 SELECT 
     tt.ID AS track_trace_id,
-    tt.waermepumpe_id,
+    tt.heat_pump_id,
     tt.station_id,
-    tt.ausschuss,
-    tt.anzahl_ausschuss,
-    tto.messwert_id,
-    mt.bezeichnung AS messwert_bezeichnung,
-    tto.wert,
-    tto.zeit_aufzeichnung
+    tt.defective,
+    tt.defective_quantity,
+    tto.measurement_id,
+    mt.name AS measurement_name,
+    tto.value,
+    tto.recorded_time
 FROM 
     track_trace tt
 JOIN 
     track_trace_optional tto ON tt.track_trace_optional_id = tto.ID
 JOIN 
-    messwert_typen mt ON tto.messwert_id = mt.ID
+    measurement_types mt ON tto.measurement_id = mt.ID
 WHERE 
-    tto.ausschuss = TRUE;
+    tto.defective = TRUE;

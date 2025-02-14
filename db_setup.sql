@@ -1,114 +1,111 @@
--- Tabelle: Waermepumpen
-CREATE TABLE waermepumpe (
+-- Table: Heat Pumps
+CREATE TABLE heat_pump (
     ID SERIAL PRIMARY KEY, 
-    interne_bezeichnung VARCHAR,
-    typ VARCHAR
+    internal_name VARCHAR,
+    type VARCHAR
 );
 
--- Tabelle: Fertigungslinien
-CREATE TABLE fertigungslinie (
+-- Table: Production Lines
+CREATE TABLE production_line (
     ID SERIAL PRIMARY KEY, 
-    bezeichnung VARCHAR
+    name VARCHAR
 );
 
--- Tabelle: Waermepumpe_Fertigungslinie
-CREATE TABLE waermepumpe_fertigungslinie (
-    waermepumpe_id INT, 
-    fertigungslinie_id INT, 
-    PRIMARY KEY (waermepumpe_id, fertigungslinie_id),
-    FOREIGN KEY (waermepumpe_id) REFERENCES waermepumpe(ID),
-    FOREIGN KEY (fertigungslinie_id) REFERENCES fertigungslinie(ID)
+-- Table: Heat Pump - Production Line (Many-to-Many)
+CREATE TABLE heat_pump_production_line (
+    heat_pump_id INT, 
+    production_line_id INT, 
+    PRIMARY KEY (heat_pump_id, production_line_id),
+    FOREIGN KEY (heat_pump_id) REFERENCES heat_pump(ID),
+    FOREIGN KEY (production_line_id) REFERENCES production_line(ID)
 );
 
-
--- Tabelle: Fertigungsstationen
-CREATE TABLE fertigungsstation (
+-- Table: Production Stations
+CREATE TABLE production_station (
     ID SERIAL PRIMARY KEY, 
-    bezeichnung VARCHAR,
-    fertigungslinie_id INT, 
-    FOREIGN KEY (fertigungslinie_id) REFERENCES fertigungslinie(ID)
+    name VARCHAR,
+    production_line_id INT, 
+    FOREIGN KEY (production_line_id) REFERENCES production_line(ID)
 );
 
--- Tabelle: Kunden
-CREATE TABLE kunde (
+-- Table: Customers
+CREATE TABLE customer (
     ID SERIAL PRIMARY KEY, 
-    firmenname VARCHAR, 
-    strasse VARCHAR, 
-    hausnummer VARCHAR,
-    postleitzahl VARCHAR, 
-    stadt VARCHAR,
-    land VARCHAR,
-    ansprechpartner_vorname VARCHAR,
-    ansprechpartner_nachname VARCHAR,
-    ansprechpartner_handynummer VARCHAR
+    company_name VARCHAR, 
+    street VARCHAR, 
+    house_number VARCHAR,
+    postal_code VARCHAR, 
+    city VARCHAR,
+    country VARCHAR,
+    contact_first_name VARCHAR,
+    contact_last_name VARCHAR,
+    contact_mobile_number VARCHAR
 );
 
--- Tabelle: Auftraege
-CREATE TABLE auftrag (
+-- Table: Orders
+CREATE TABLE order (
     ID SERIAL PRIMARY KEY, 
-    kunde_id INT, 
-    bestelldatum TIMESTAMP, 
-    lieferdatum TIMESTAMP, 
+    customer_id INT, 
+    order_date TIMESTAMP, 
+    delivery_date TIMESTAMP, 
     status VARCHAR,
-    FOREIGN KEY (kunde_id) REFERENCES kunde(ID)
+    FOREIGN KEY (customer_id) REFERENCES customer(ID)
 );
 
--- Tabelle: Auftragsbatches
-CREATE TABLE auftrag_batches (
+-- Table: Order Batches
+CREATE TABLE order_batches (
     ID SERIAL PRIMARY KEY, 
-    auftrag_id INT, 
-    waermepumpe_id INT, 
-    fertigungslinie_id INT, 
-    anzahl INT, 
-    produktion_start TIMESTAMP, 
-    produktion_ende TIMESTAMP, 
-    FOREIGN KEY (auftrag_id) REFERENCES auftrag(ID), 
-    FOREIGN KEY (waermepumpe_id) REFERENCES waermepumpe(ID), 
-    FOREIGN KEY (fertigungslinie_id) REFERENCES fertigungslinie(ID)
+    order_id INT, 
+    heat_pump_id INT, 
+    production_line_id INT, 
+    quantity INT, 
+    production_start TIMESTAMP, 
+    production_end TIMESTAMP, 
+    FOREIGN KEY (order_id) REFERENCES order(ID), 
+    FOREIGN KEY (heat_pump_id) REFERENCES heat_pump(ID), 
+    FOREIGN KEY (production_line_id) REFERENCES production_line(ID)
 );
 
--- Tabelle: Alarm
-CREATE TYPE warnung_typ AS ENUM ('Störung', 'Warnung');
+-- Table: Alarm
+CREATE TYPE warning_type AS ENUM ('Error', 'Warning');
 
 CREATE TABLE alarm (
     ID SERIAL PRIMARY KEY, 
     start TIMESTAMP, 
-    ende TIMESTAMP, 
-    bezeichnung VARCHAR, 
-    typ warnung_typ, 
+    end TIMESTAMP, 
+    name VARCHAR, 
+    type warning_type, 
     station_id INT, 
-    FOREIGN KEY (station_id) REFERENCES fertigungsstation(ID)
+    FOREIGN KEY (station_id) REFERENCES production_station(ID)
 );
 
--- Tabelle: messwert_typen
-CREATE TABLE messwert_typen (
+-- Table: Measurement Types
+CREATE TABLE measurement_types (
     ID INT PRIMARY KEY,
-    bezeichnung VARCHAR UNIQUE
+    name VARCHAR UNIQUE
 );
 
--- Tabelle: track_trace_optional 
+-- Table: Track & Trace Optional 
 CREATE TABLE track_trace_optional (
     ID SERIAL PRIMARY KEY,
-    messwert_id INT,
-    wert FLOAT,
-    ausschuss BOOLEAN,
-    zeit_aufzeichnung TIMESTAMP,
-    FOREIGN KEY (messwert_id) REFERENCES messwert_typen(ID)
+    measurement_id INT,
+    value FLOAT,
+    rejected BOOLEAN,
+    recording_time TIMESTAMP,
+    FOREIGN KEY (measurement_id) REFERENCES measurement_types(ID)
 );
 
--- Tabelle: track_trace
+-- Table: Track & Trace
 CREATE TABLE track_trace (
     ID SERIAL PRIMARY KEY,
     station_id INT,
-    bearbeitungsstart TIMESTAMP,
-    bearbeitungsende TIMESTAMP,
-    waermepumpe_id INT,
-    ausschuss BOOLEAN, -- TRUE = Ausschuss, FALSE = Kein Ausschuss
-    anzahl_ausschuss INT,  
+    processing_start TIMESTAMP,
+    processing_end TIMESTAMP,
+    heat_pump_id INT,
+    rejected BOOLEAN, -- TRUE = Rejected, FALSE = Not Rejected
+    rejected_count INT,  
     track_trace_optional_id INT, 
-    FOREIGN KEY (station_id) REFERENCES fertigungsstation(ID), 
-    FOREIGN KEY (waermepumpe_id) REFERENCES waermepumpe(ID),
+    FOREIGN KEY (station_id) REFERENCES production_station(ID), 
+    FOREIGN KEY (heat_pump_id) REFERENCES heat_pump(ID),
     FOREIGN KEY (track_trace_optional_id) REFERENCES track_trace_optional(ID)
-); 
-
-
+);

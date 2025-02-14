@@ -1,116 +1,111 @@
+-- Orders with Customer Information
 SELECT 
-    auftrag.ID AS auftrag_id, 
-	kunde.firmenname AS kunde_name,
-    auftrag.bestelldatum, 
-    auftrag.lieferdatum 
+    orders.ID AS order_id, 
+    customer.company_name AS customer_name,
+    orders.order_date, 
+    orders.delivery_date 
 FROM 
-    auftrag
+    orders
 JOIN 
-    kunde 
-    ON auftrag.kunde_id = kunde.ID
+    customer 
+    ON orders.customer_id = customer.ID
 ORDER BY 
-    auftrag.bestelldatum;
+    orders.order_date;
 
 
-
-
+-- Alarms with Associated Production Stations
 SELECT 
-    alarm.bezeichnung AS alarm_name, 
-	fertigungsstation.bezeichnung AS station_name,
-    alarm.start AS alarm_startzeit
+    alarm.name AS alarm_name, 
+    production_station.name AS station_name,
+    alarm.start_time AS alarm_start_time
 FROM 
     alarm
 JOIN 
-    fertigungsstation 
-    ON alarm.station_id = fertigungsstation.ID
+    production_station 
+    ON alarm.station_id = production_station.ID
 ORDER BY 
-    alarm.start;
+    alarm.start_time;
 
 
-
-
+-- Orders by Status
 SELECT 
-    auftrag.ID AS auftrag_id, 
-    auftrag.status, 
-    kunde.firmenname AS kunde_name
+    orders.ID AS order_id, 
+    orders.status, 
+    customer.company_name AS customer_name
 FROM 
-    auftrag
+    orders
 JOIN 
-    kunde 
-    ON auftrag.kunde_id = kunde.ID
+    customer 
+    ON orders.customer_id = customer.ID
 ORDER BY 
-    auftrag.status;
+    orders.status;
 
 
-
-
+-- Total Production Quantity per Customer
 SELECT 
-    kunde.firmenname AS kunde_name,
-    SUM(auftrag_batches.anzahl) AS gesamt_produktionsmenge
+    customer.company_name AS customer_name,
+    SUM(order_batches.quantity) AS total_production_quantity
 FROM 
-    auftrag_batches
+    order_batches
 JOIN 
-    auftrag ON auftrag_batches.auftrag_id = auftrag.ID
+    orders ON order_batches.order_id = orders.ID
 JOIN 
-    kunde ON auftrag.kunde_id = kunde.ID
+    customer ON orders.customer_id = customer.ID
 GROUP BY 
-    kunde.firmenname
+    customer.company_name
 ORDER BY 
-    gesamt_produktionsmenge DESC;
+    total_production_quantity DESC;
 
 
-
-
+-- Total Produced Quantity per Heat Pump Type
 SELECT 
-    waermepumpe.typ AS waermepumpentyp,
-    SUM(auftrag_batches.anzahl) AS gesamt_produzierte_menge
+    heat_pump.type AS heat_pump_type,
+    SUM(order_batches.quantity) AS total_produced_quantity
 FROM 
-    auftrag_batches
+    order_batches
 JOIN 
-    waermepumpe ON auftrag_batches.waermepumpe_id = waermepumpe.ID
+    heat_pump ON order_batches.heat_pump_id = heat_pump.ID
 JOIN 
-    auftrag ON auftrag_batches.auftrag_id = auftrag.ID
+    orders ON order_batches.order_id = orders.ID
 GROUP BY 
-    waermepumpe.typ
+    heat_pump.type
 ORDER BY 
-    gesamt_produzierte_menge DESC;
+    total_produced_quantity DESC;
 
 
-
-
+-- Customers with Total Heat Pump Orders ≥ 20,000
 SELECT 
-    kunde.firmenname AS kunde_name,
-    (SELECT SUM(anzahl) 
-     FROM auftrag_batches 
-     JOIN auftrag ON auftrag_batches.auftrag_id = auftrag.ID
-     WHERE auftrag.kunde_id = kunde.ID) AS gesamt_anzahl_waermepumpen
+    customer.company_name AS customer_name,
+    (SELECT SUM(quantity) 
+     FROM order_batches 
+     JOIN orders ON order_batches.order_id = orders.ID
+     WHERE orders.customer_id = customer.ID) AS total_heat_pump_quantity
 FROM 
-    kunde
+    customer
 WHERE 
-    (SELECT SUM(anzahl) 
-     FROM auftrag_batches 
-     JOIN auftrag ON auftrag_batches.auftrag_id = auftrag.ID
-     WHERE auftrag.kunde_id = kunde.ID) >= 20000
+    (SELECT SUM(quantity) 
+     FROM order_batches 
+     JOIN orders ON order_batches.order_id = orders.ID
+     WHERE orders.customer_id = customer.ID) >= 20000
 ORDER BY 
-    gesamt_anzahl_waermepumpen DESC;
+    total_heat_pump_quantity DESC;
 
 
-
-
+-- Production Lines with High Defect Count
 SELECT 
-    fertigungslinie.bezeichnung AS linie_name,
-    (SELECT SUM(anzahl_ausschuss) 
+    production_line.name AS line_name,
+    (SELECT SUM(defective_quantity) 
      FROM track_trace 
-     JOIN fertigungsstation ON track_trace.station_id = fertigungsstation.ID 
-     WHERE fertigungsstation.fertigungslinie_id = fertigungslinie.ID AND anzahl_ausschuss > 500) AS gesamt_ausschuss
+     JOIN production_station ON track_trace.station_id = production_station.ID 
+     WHERE production_station.production_line_id = production_line.ID AND defective_quantity > 500) AS total_defects
 FROM 
-    fertigungslinie
+    production_line
 WHERE 
     ID IN (
-        SELECT fertigungslinie_id 
+        SELECT production_line_id 
         FROM track_trace 
-        JOIN fertigungsstation ON track_trace.station_id = fertigungsstation.ID 
-        WHERE anzahl_ausschuss > 500
+        JOIN production_station ON track_trace.station_id = production_station.ID 
+        WHERE defective_quantity > 500
     )
 ORDER BY 
-    gesamt_ausschuss DESC;
+    total_defects DESC;
